@@ -3,25 +3,33 @@
 import { window, workspace, commands, ExtensionContext, extensions }  from 'vscode';
 import { posix } from 'path';
 
-import { multiStepInput } from './inputs/multiStepInput';
+import LocalStorageService from './utils/localStorageService';
+import { multiStepInput, multiSelectInput } from './inputs/multiStepInput';
 
 // this method is called when your extension is activated
 // your extension is activated the very first time the command is executed
 export function activate(context: ExtensionContext) {
-
-	// Use the console to output diagnostic information (console.log) and errors (console.error)
-	// This line of code will only be executed once when your extension is activated
-	console.log('Changelog Helper is now activated!');
-
 	// The command has been defined in the package.json file
 	// Now provide the implementation of the command with registerCommand
 	// The commandId parameter must match the command field in package.json
-	let disposable = commands.registerCommand('changelog-helper.create', async () => {
+  let disposable = commands.registerCommand('changelog-helper.create', async () => {
 		if (!workspace.workspaceFolders) {
-			return window.showInformationMessage('No folder or workspace opened');
+			return window.showErrorMessage('No folder or workspace opened');
 		}
 
 		try{
+      const storageManager = new LocalStorageService(context.globalState);
+      let changeLogTypes = [];
+
+      try{
+        const storageChangeLogTypes : any = storageManager.getValue('changeLogTypes');
+        if(storageChangeLogTypes){
+          changeLogTypes = JSON.parse(storageChangeLogTypes);
+        }
+      }catch(error){
+        window.showErrorMessage(`Failed to get from storage: ${error}`);
+      }
+
 			const gitExtension = (extensions.getExtension('vscode.git') || {}).exports;
 			const api = gitExtension.getAPI(1);
 			const repo = api.repositories[0];
@@ -46,7 +54,18 @@ export function activate(context: ExtensionContext) {
         changeLogType,
         ticket,
         includeDeployTasks
-      } = await multiStepInput(suggestedTicket);
+      } = await multiStepInput(suggestedTicket, changeLogTypes);
+
+      try{
+        const defaultTypes = ["Improvements", "Bug Fixes"];
+
+        if(!defaultTypes.includes(changeLogType) && !changeLogTypes.includes(changeLogType)){
+          changeLogTypes.push(changeLogType)
+          storageManager.setValue('changeLogTypes', JSON.stringify(changeLogTypes));
+        }
+      }catch(error){
+        window.showErrorMessage(`Failed to update storage: ${error}`);
+      }
 
 			// Write to file
 			const fileName = `${ticket}.yml`;
@@ -68,10 +87,52 @@ export function activate(context: ExtensionContext) {
 			window.showTextDocument(fileUri);
 
 			// Display a message box to the user
-			window.showInformationMessage(`Created: ${fileName}`);
+			window.showInformationMessage(`Created changelog: ${fileName}`);
 		}catch(error){
 			// Display a message box to the user
-			window.showInformationMessage(`Failed to create: ${error}`);
+			window.showErrorMessage(`Failed to create changelog: ${error}`);
+		}
+	});
+
+	context.subscriptions.push(disposable);
+
+  disposable = commands.registerCommand('changelog-helper.edit', async () => {
+		if (!workspace.workspaceFolders) {
+			return window.showErrorMessage('No folder or workspace opened');
+		}
+
+		try{
+      const storageManager = new LocalStorageService(context.globalState);
+      let changeLogTypes = [];
+
+      try{
+        const storageChangeLogTypes : any = storageManager.getValue('changeLogTypes');
+        if(storageChangeLogTypes){
+          changeLogTypes = JSON.parse(storageChangeLogTypes);
+        }
+      }catch(error){
+        window.showErrorMessage(`Failed to get from storage: ${error}`);
+      }
+
+			// Get the list of types to remove
+			const {
+        changeLogTypesToRemove
+      } = await multiSelectInput(changeLogTypes);
+
+      try{
+        changeLogTypes = changeLogTypes.filter((el: string) => {
+          return !changeLogTypesToRemove.includes(el);
+        });
+        storageManager.setValue('changeLogTypes', JSON.stringify(changeLogTypes));
+      }catch(error){
+        window.showErrorMessage(`Failed to update storage: ${error}`);
+      }
+
+			// Display a message box to the user
+			window.showInformationMessage(`Removed selected changelog types`);
+		}catch(error){
+			// Display a message box to the user
+			window.showErrorMessage(`Failed to remove selected changelog types: ${error}`);
 		}
 	});
 

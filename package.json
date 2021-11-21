@@ -6,7 +6,7 @@
 		"name": "Jonathan Meaney"
 	},
   "publisher": "jonathan-meaney",
-	"version": "1.0.0",
+	"version": "1.0.1",
   "repository": {
     "type": "git",
     "url": "https://github.com/jonathanmeaney/changelog-helper"
@@ -21,14 +21,19 @@
 		"Other"
 	],
 	"activationEvents": [
-		"onCommand:changelog-helper.create"
+		"onCommand:changelog-helper.create",
+		"onCommand:changelog-helper.edit"
 	],
 	"main": "./out/extension.js",
 	"contributes": {
 		"commands": [
 			{
 				"command": "changelog-helper.create",
-				"title": "Create Changelog"
+				"title": "Changelog Helper: Create"
+			},
+      {
+				"command": "changelog-helper.edit",
+				"title": "Changelog Helper: Edit"
 			}
 		]
 	},
